@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Song List UI
 // @namespace    https://github.com/TheJoseph98
-// @version      3.3.2
+// @version      3.3.4
 // @description  Adds a song list window, accessible with a button below song info while in quiz, each song in the list is clickable for extra information
 // @author       TheJoseph98
 // @match        https://animemusicquiz.com/*
@@ -674,9 +674,9 @@ function updateInfo(song) {
             <a target="_blank" href="https://www.animenewsnetwork.com/encyclopedia/anime.php?id=${song.annId}">https://www.animenewsnetwork.com/encyclopedia/anime.php?id=${song.annId}</a>
         </div>`);
     let animeInfoLinksContainer = $(`<div id="animeInfoLinksContainer"><h5><b>MAL/Anilist/Kitsu IDs</b></h5><p style="margin-bottom: 0;">`
-        .concat(Number.isInteger(song.siteIds.malId) ? `</p>MAL ID: <a href="https://www.myanimelist.net/anime/${song.siteIds.malId}">${song.siteIds.malId}</a><p style="margin-bottom: 0;"` : ``)
-        .concat(Number.isInteger(song.siteIds.aniListId) ? `</p>Anilist ID: <a href="https://www.anilist.co/anime/${song.siteIds.aniListId}">${song.siteIds.aniListId}</a><p style="margin-bottom: 0;">` : ``)
-        .concat(Number.isInteger(song.siteIds.kitsuId) ? `</p>Kitsu ID: <a href="https://kitsu.io/anime/${song.siteIds.kitsuId}">${song.siteIds.kitsuId}</a><p style="margin-bottom: 0;">` : ``)
+        .concat(Number.isInteger(song.siteIds.malId) ? `</p>MAL ID: <a target="_blank" href="https://www.myanimelist.net/anime/${song.siteIds.malId}">${song.siteIds.malId}</a><p style="margin-bottom: 0;"` : ``)
+        .concat(Number.isInteger(song.siteIds.aniListId) ? `</p>Anilist ID: <a target="_blank" href="https://www.anilist.co/anime/${song.siteIds.aniListId}">${song.siteIds.aniListId}</a><p style="margin-bottom: 0;">` : ``)
+        .concat(Number.isInteger(song.siteIds.kitsuId) ? `</p>Kitsu ID: <a target="_blank" href="https://kitsu.io/anime/${song.siteIds.kitsuId}">${song.siteIds.kitsuId}</a><p style="margin-bottom: 0;">` : ``)
         .concat(`</p>`))
     let guessedContainer = $(`<div id="guessedContainer"></div>`)
         .html(`<h5><b>Guessed<br>${guesses.length}/${song.activePlayers} (${parseFloat((guesses.length/song.activePlayers*100).toFixed(2))}%)</b></h5>`);
@@ -1289,7 +1289,9 @@ function setup() {
     // get song data on answer reveal
     let answerResultsListener = new Listener("answer results", (result) => {
     	setTimeout(() => {
-
+            console.log("SongListUI")
+            console.log(result)
+            console.log(quiz)
 	        let newSong = {
 	            gameMode: quiz.gameMode,
 	            name: result.songInfo.songName,
@@ -1360,6 +1362,10 @@ function setup() {
 	            newSong.correct = result.players[playerIdx].correct;
 	            newSong.selfAnswer = quiz.players[findPlayer.gamePlayerId].avatarSlot.$answerContainerText.text();
 	        }
+		if (quiz.gameMode === "Nexus") {
+                    newSong.correct = result.players[0].correct;
+                    newSong.selfAnswer = quiz.avatarSlotMap[1].avatarSlot.$answerContainerText.text();
+            	}
 	        addTableEntry(newSong);
 	        exportData.push(newSong);
 	    },0);

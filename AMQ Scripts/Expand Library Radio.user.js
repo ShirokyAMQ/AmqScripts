@@ -1,10 +1,15 @@
 // ==UserScript==
 // @name         Expand Library Radio
-// @version      1.1
+// @version      1.1.3
 // @match        https://animemusicquiz.com/
 // @match        https://animemusicquiz.com/?forceLogin=True
+// @resource     malIds https://raw.githubusercontent.com/Kikimanox/DiscordBotNew/master/data/_amq/annMal.json
+// @grant        GM_getResourceText
 // ==/UserScript==
 
+var amqList
+var anilist
+var malIds = JSON.parse(GM_getResourceText("malIds")) // This depends on Kiki actively updating json
 var allAnimeSongDetailsList
 var isFirstTimeLaunch = true
 var shouldAutoplayAfterLoading = shouldAutoplayOnLaunch()
@@ -19,6 +24,7 @@ function setupRadio() {
     }
 
     setupUI()
+    // loadUserPageFromAnilist()
     loadExpandLibrary()
 }
 
@@ -48,7 +54,8 @@ function loadExpandLibrary() {
             console.log("Failed expand library loading")
             return
         }
-        updateAllAnimeSongDetailsListUsing(payload.questions)
+        amqList = payload.questions
+        updateAllAnimeSongDetailsList()
     }).bindListener()
 
     socket.sendCommand({
@@ -57,17 +64,38 @@ function loadExpandLibrary() {
     })
 }
 
-function updateAllAnimeSongDetailsListUsing(animeList) {
+function updateAllAnimeSongDetailsList() {
     allAnimeSongDetailsList = []
 
-    for (var anime of animeList) {
+    if (allListStatusesAllowed() == false && anilist == undefined) {
+        return
+    }
+
+    for (var anime of amqList) {
+        var malId = parseInt((malIds[anime.annId] ?? "-1").split(" ")[0])
+
+        if (shouldFilterOutCompleted() && (anilist["COMPLETED"] ?? []).includes(malId)) {
+            continue
+        }
+        if (shouldFilterOutWatching() && ((anilist["CURRENT"] ?? []).includes(malId) || (anilist["REPEATING"] ?? []).includes(malId))) {
+            continue
+        }
+        if (shouldFilterOutDropped() && (anilist["DROPPED"] ?? []).includes(malId)) {
+            continue
+        }
+        if (shouldFilterOutPaused() && (anilist["PAUSED"] ?? []).includes(malId)) {
+            continue
+        }
+        if (shouldFilterOutPlanToWatch() && (anilist["PLANNING"] ?? []).includes(malId)) {
+            continue
+        }
+
         var songDetailsList = songDetailsListFrom(anime)
         allAnimeSongDetailsList = allAnimeSongDetailsList.concat(songDetailsList)
     }
 
     if (isFirstTimeLaunch) {
-        queueRandomSong()
-        isFirstTimeLaunch = false
+        isFirstTimeLaunch = !queueRandomSong()
     }
 
     if (shouldAutoplayAfterLoading) {
@@ -85,6 +113,15 @@ function songDetailsListFrom(animeEntry) {
         var songDetails = songDetailsWithMp3From(expandLibrarySong)
 
         if (songDetails.mp3Link == null) {
+            continue
+        }
+        if (expandLibrarySong.type == 1 && shouldFilterOutOpenings()) {
+            continue
+        }
+        if (expandLibrarySong.type == 2 && shouldFilterOutEndings()) {
+            continue
+        }
+        if (expandLibrarySong.type == 3 && shouldFilterOutInserts()) {
             continue
         }
 
@@ -112,8 +149,12 @@ function playRandomSong() {
 }
 
 function queueRandomSong() {
+    if (allAnimeSongDetailsList.length == 0) {
+        return false
+    }
     var songIndex = randomSongIndex(allAnimeSongDetailsList.length)
     queue(allAnimeSongDetailsList[songIndex])
+    return true
 }
 
 function randomSongIndex(songCount) {
@@ -147,16 +188,106 @@ function queue(song) {
     popoverElement.setAttribute("data-content", song.anime)
 }
 
+function adjustVolume(event) {
+    let radioPlayer = document.getElementById('radioPlayer')
+    let volume = radioPlayer.volume
+    let increment = event.deltaY < 0 ? 0.1 : -0.1
+    radioPlayer.volume = Math.min(Math.max(volume + increment, 0), 1)
+}
+
 // Settings
 function shouldAutoplayOnLaunch() {
-    var shouldAutoplayOnLaunchCookie = Cookies.get("shouldAutoplayOnLaunch")
-    return shouldAutoplayOnLaunchCookie === "true"
+    return isCookieEnabled("shouldAutoplayOnLaunch")
 }
 
 function changeAutoplayOnLaunchSetting() {
-    var previousValue = shouldAutoplayOnLaunch()
+    toggleCookie("shouldAutoplayOnLaunch")
+}
+
+function shouldFilterOutOpenings() {
+    return isCookieEnabled("shouldFilterOutOpenings")
+}
+
+function changeOpeningsFilterSetting() {
+    toggleCookie("shouldFilterOutOpenings")
+    updateAllAnimeSongDetailsList()
+}
+
+function shouldFilterOutEndings() {
+    return isCookieEnabled("shouldFilterOutEndings")
+}
+
+function changeEndingsFilterSetting() {
+    toggleCookie("shouldFilterOutEndings")
+    updateAllAnimeSongDetailsList()
+}
+
+function shouldFilterOutInserts() {
+    return isCookieEnabled("shouldFilterOutInserts")
+}
+
+function changeInsertsFilterSetting() {
+    toggleCookie("shouldFilterOutInserts")
+    updateAllAnimeSongDetailsList()
+}
+
+function allListStatusesAllowed() {
+    return !shouldFilterOutCompleted() && !shouldFilterOutWatching() && !shouldFilterOutDropped() && !shouldFilterOutPlanToWatch() && !shouldFilterOutPaused()
+}
+
+function shouldFilterOutCompleted() {
+    return isCookieEnabled("shouldFilterOutCompleted")
+}
+
+function changeCompletedFilterSetting() {
+    toggleCookie("shouldFilterOutCompleted")
+    updateAllAnimeSongDetailsList()
+}
+
+function shouldFilterOutWatching() {
+    return isCookieEnabled("shouldFilterOutWatching")
+}
+
+function changeWatchingFilterSetting() {
+    toggleCookie("shouldFilterOutWatching")
+    updateAllAnimeSongDetailsList()
+}
+
+function shouldFilterOutDropped() {
+    return isCookieEnabled("shouldFilterOutDropped")
+}
+
+function changeDroppedFilterSetting() {
+    toggleCookie("shouldFilterOutDropped")
+    updateAllAnimeSongDetailsList()
+}
+
+function shouldFilterOutPlanToWatch() {
+    return isCookieEnabled("shouldFilterOutPlanToWatch")
+}
+
+function changePlanToWatchFilterSetting() {
+    toggleCookie("shouldFilterOutPlanToWatch")
+    updateAllAnimeSongDetailsList()
+}
+
+function shouldFilterOutPaused() {
+    return isCookieEnabled("shouldFilterOutPaused")
+}
+
+function changePausedFilterSetting() {
+    toggleCookie("shouldFilterOutPaused")
+    updateAllAnimeSongDetailsList()
+}
+
+function isCookieEnabled(cookie) {
+    return Cookies.get(cookie) === "true"
+}
+
+function toggleCookie(cookie) {
+    var previousValue = isCookieEnabled(cookie)
     var newValue = (!previousValue).toString()
-    Cookies.set("shouldAutoplayOnLaunch", newValue, { expires: 365 })
+    Cookies.set(cookie, newValue, { expires: 365 })
 }
 
 // UI Update
@@ -214,6 +345,102 @@ function closeRadioSettings() {
     setTimeout(function() { radioSettingsBackdrop.style.display = "none" }, 500)
 }
 
+// Anilist
+async function loadUserPageFromAnilist() {
+    if (document.getElementById("loadingScreen").className !== "gamePage hidden") {
+        setTimeout(loadUserPageFromAnilist, 3000)
+        return
+    }
+    var username = document.getElementById("aniListUserNameInput").value
+    if (username == '') {
+        return
+    }
+
+    var url = "https://graphql.anilist.co"
+    var httpMethod = "POST"
+    var requestBody = userPageRequestBody(username)
+    try {
+        var response = await responseFrom(url, httpMethod, requestBody)
+        updateListsFrom(response)
+        updateAllAnimeSongDetailsList()
+    } catch (error) {
+        console.log(error)
+    }
+}
+
+function responseFrom(url, method, body) {
+    return new Promise(function (resolve, reject) {
+        var request = new XMLHttpRequest()
+        request.open(method, url, true)
+        request.setRequestHeader("Content-Type", "application/json")
+        request.setRequestHeader("Accept", "application/json")
+        request.timeout = 15 * 1000
+        request.onload = function() {
+            if (this.status != 200) {
+                reject("Request completed with error status: " + this.status + " " + this.statusText)
+                return
+            }
+            resolve(this.response)
+        }
+        request.ontimeout = function() {
+            reject("Request timedout!")
+        }
+        request.onerror = function() {
+            reject("Unexpected network error!")
+        }
+        request.send(body)
+    })
+}
+
+function userPageRequestBody(username, page) {
+    var query = userPageQuery()
+    var variables = { username: username, page: page }
+    return JSON.stringify({
+        query: query,
+        variables: variables
+    })
+}
+
+function updateListsFrom(response) {
+    anilist = {}
+    var lists = JSON.parse(response).data.MediaListCollection.lists
+    if (lists == null) {
+        throw("Invalid or corrupted response from anilist")
+    }
+    for (var list of lists) {
+        anilist[list.status] = formattedMalIds(list.entries)
+    }
+}
+
+function formattedMalIds(anilistEntries) {
+    var malIds = []
+    for (var entry of anilistEntries) {
+        let entryId = entry.media.idMal
+        if (entryId == null) {
+            continue
+        }
+        malIds = malIds.concat(entryId)
+    }
+    return malIds
+}
+
+function userPageQuery() {
+    return `
+query ($username: String) {
+  MediaListCollection(userName: $username, type: ANIME) {
+    lists {
+      entries {
+        media {
+          idMal
+        }
+      }
+      status
+    }
+  }
+}
+`
+}
+
 // UI Elements
 function createDiv(id = "", className = "") {
     var div = document.createElement("div")
@@ -226,6 +453,7 @@ function createExpandLibraryButton() {
     var openRadioButton = createDiv("openRadioButton", "button")
     openRadioButton.style.cssText = openRadioButtonStyle()
     openRadioButton.onclick = expandRadioOverlay
+    openRadioButton.onwheel = adjustVolume
 
     var openRadioButtonIcon = createDiv()
     openRadioButtonIcon.innerHTML = "▶"
@@ -237,6 +465,7 @@ function createExpandLibraryButton() {
 function createRadioOverlay() {
     var radioOverlay = createDiv("radioOverlay")
     radioOverlay.style.cssText = radioOverlayStyle()
+    radioOverlay.onwheel = adjustVolume
     hide(radioOverlay)
 
     radioOverlay.append(createPlayerTitle())
@@ -391,28 +620,62 @@ function createRadioSettingsCloseButton() {
 
 function createRadioSettingsBody() {
     var settingsBody = createDiv("radioSettingsBody", "modal-body")
-    settingsBody.append(createAutoplayOnLaunchSetting())
+    var settingsTable = document.createElement("table")
+    settingsTable.style.cssText = radioSettingsTableStyle()
+
+    createAutoplayOnLaunchSetting(settingsTable.insertRow(-1))
+    createSongTypeFilterSettings(settingsTable.insertRow(-1))
+    //createListStatusFilterSettings(settingsTable.insertRow(-1))
+    //createListStatusFilterSettings2(settingsTable.insertRow(-1))
+
+    settingsBody.append(settingsTable)
     return settingsBody
 }
 
-function createAutoplayOnLaunchSetting() {
-    var autoplayOnLaunchSetting = createDiv()
-    autoplayOnLaunchSetting.style.cssText = radioSettingStyle()
+function createAutoplayOnLaunchSetting(row) {
+    row.insertCell(0).append(createSettingLabel("Autoplay after loading"))
+    row.cells[0].colSpan = "5"
+    row.insertCell(1).append(createCheckbox("autoplayOnLaunchCheckbox", shouldAutoplayOnLaunch(), changeAutoplayOnLaunchSetting))
+}
 
-    var autoplayOnLaunchTitle = document.createElement("label")
-    autoplayOnLaunchTitle.innerHTML = "Autoplay after loading"
-    autoplayOnLaunchTitle.style.cssText = radioSettingTitleStyle()
-    autoplayOnLaunchSetting.append(autoplayOnLaunchTitle)
+function createSongTypeFilterSettings(row) {
+    row.insertCell(0).append(createSettingLabel("OP"))
+    row.insertCell(1).append(createCheckbox("openingsCheckbox", !shouldFilterOutOpenings(), changeOpeningsFilterSetting))
+    row.insertCell(2).append(createSettingLabel("ED"))
+    row.insertCell(3).append(createCheckbox("endingsCheckbox", !shouldFilterOutEndings(), changeEndingsFilterSetting))
+    row.insertCell(4).append(createSettingLabel("IN"))
+    row.insertCell(5).append(createCheckbox("insertsCheckbox", !shouldFilterOutInserts(), changeInsertsFilterSetting))
+}
 
-    var checkbox = createCheckbox("autoplayOnLaunchCheckbox", shouldAutoplayOnLaunch(), changeAutoplayOnLaunchSetting)
-    autoplayOnLaunchSetting.append(checkbox)
+function createListStatusFilterSettings(row) {
+    row.insertCell(0).append(createSettingLabel("C"))
+    row.insertCell(1).append(createCheckbox("completedCheckbox", !shouldFilterOutCompleted(), changeCompletedFilterSetting))
+    row.insertCell(2).append(createSettingLabel("W"))
+    row.insertCell(3).append(createCheckbox("watchingCheckbox", !shouldFilterOutWatching(), changeWatchingFilterSetting))
+    row.insertCell(4).append(createSettingLabel("D"))
+    row.insertCell(5).append(createCheckbox("droppedCheckbox", !shouldFilterOutDropped(), changeDroppedFilterSetting))
+}
 
-    return autoplayOnLaunchSetting
+function createListStatusFilterSettings2(row) {
+    row.insertCell(0)
+    row.insertCell(1).append(createSettingLabel("H"))
+    row.insertCell(2).append(createCheckbox("pausedCheckbox", !shouldFilterOutPaused(), changePausedFilterSetting))
+    row.insertCell(3).append(createSettingLabel("P"))
+    row.insertCell(4).append(createCheckbox("plantowatchCheckbox", !shouldFilterOutPlanToWatch(), changePlanToWatchFilterSetting))
+    row.insertCell(5)
+}
+
+function createSettingLabel(title) {
+    var label = document.createElement("label")
+    label.innerHTML = title
+    label.style.cssText = radioSettingTitleStyle()
+    return label
 }
 
 function createCheckbox(id, isChecked, onClick) {
     var checkboxContainer = document.createElement("div")
     checkboxContainer.className = "customCheckbox"
+    checkboxContainer.style.cssText = radioSettingCheckboxStyle()
 
     var checkbox = document.createElement("input")
     checkbox.type = "checkbox"
@@ -539,16 +802,21 @@ function radioSettingsWindowDialogStyle() {
     ].join(";")
 }
 
-function radioSettingStyle() {
+function radioSettingsTableStyle() {
     return [
-        "display: inline-flex"
+        "width: 100%"
+    ].join(";")
+}
+
+function radioSettingCheckboxStyle() {
+    return [
+        "vertical-align: middle"
     ].join(";")
 }
 
 function radioSettingTitleStyle() {
     return [
-        "padding-right: 30px",
-        "padding-left: 30px"
+        "padding-left: 10px"
     ].join(";")
 }
 

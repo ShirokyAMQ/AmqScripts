@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Highlight Friends
 // @namespace    https://github.com/nyamu-amq
-// @version      0.27
+// @version      0.32
 // @description  Apply color to name of yourself and friends. and more
 // @author       nyamu, ensorcell
 // @match        https://animemusicquiz.com/*
@@ -167,7 +167,7 @@ let colorSettingData = [
 				]
 			},
 			{
-				height:30,
+				height:60,
 				columns:
 				[
 					{
@@ -196,6 +196,78 @@ let colorSettingData = [
 					}
 				]
 			}
+        ]
+    },
+    {
+        id:"smDisableRankedRewardEffects",
+        rows:
+        [
+			{
+				columns:
+				[
+					{
+						colspan: 4,
+						label: "Disable Ranked Reward Effects"
+					}
+				]
+			},
+			{
+				height:30,
+				columns:
+				[
+					{
+                        width: 60,
+						label: "Color",
+					},
+					{
+                        width: 60,
+						label: "Glow",
+					},
+					{
+                        width: 120,
+						label: "Friend Color",
+					},
+					{
+                        width: 120,
+						label: "Friend Glow",
+					},
+					{
+                        width: 200,
+						label: "Override Ranked Color",
+					}
+				]
+			},
+			{
+				height:30,
+				columns:
+				[
+					{
+						id: "smRemoveColor",
+						type: "checkbox",
+						val: false
+					},
+					{
+						id: "smRemoveGlow",
+						type: "checkbox",
+						val: false
+					},
+					{
+						id: "smRemoveFriendColor",
+						type: "checkbox",
+						val: false
+					},
+					{
+						id: "smRemoveFriendGlow",
+						type: "checkbox",
+						val: false
+					},
+					{
+						id: "smOverrideRankedColor",
+						type: "checkbox",
+						val: false
+					}
+				]
+			}
 		]
 	}
 ];
@@ -207,7 +279,7 @@ var saveData = {
 	"smColorFriendShadow":"#40ff40",
 	"smColorJoinColor":"#8080ff",
 	"smColorSpecColor":"#ffff80",
-	"smColorLeaveColor":"#ff8080"
+	"smColorLeaveColor":"#ff8080",
 };
 
 function saveSettings() {
@@ -292,30 +364,30 @@ let playerSummaryWindow;
 let playerSummaryWindowTable;
 let playerSummaryWindowOpenButton;
 function createPlayerSummaryWindow() {
-    playerSummaryWindow = new AMQWindow({
-        title: "Player Summary",
-        position: {
-        	x: 0,
-        	y: 34
-        },
-        width: 400,
-        height: 374,
-        minWidth: 400,
-        minHeight: 300,
-        zIndex: 1010,
-        resizable: true,
-        draggable: true
-    });
+	playerSummaryWindow = new AMQWindow({
+		title: "Player Summary",
+		position: {
+			x: 0,
+			y: 34
+		},
+		width: 400,
+		height: 374,
+		minWidth: 400,
+		minHeight: 300,
+		zIndex: 1010,
+		resizable: true,
+		draggable: true
+	});
 
-    playerSummaryWindow.addPanel({
-        id: "playerSummaryWindowTableContainer",
-        width: 1.0,
-        height: "calc(100%)",
-        scrollable: {
-            x: false,
-            y: true
-        }
-    });
+	playerSummaryWindow.addPanel({
+		id: "playerSummaryWindowTableContainer",
+		width: 1.0,
+		height: "calc(100%)",
+		scrollable: {
+			x: false,
+			y: true
+		}
+	});
 
 	playerSummaryWindowTable = $(`<table id="playerSummaryWindowTable" class="table floatingContainer"></table>`);
 	playerSummaryWindow.panels[0].panel.append(playerSummaryWindowTable);
@@ -365,14 +437,14 @@ function clearTable() {
 createPlayerSummaryWindow();
 
 $(document.documentElement).keydown(function (event) {
-    if (event.which === 145) {
-        if (playerSummaryWindow.isVisible()) {
-            playerSummaryWindow.close();
-        }
-        else {
-            playerSummaryWindow.open();
-        }
-    }
+	if (event.which === 145) {
+		if (playerSummaryWindow.isVisible()) {
+			playerSummaryWindow.close();
+		}
+		else {
+			playerSummaryWindow.open();
+		}
+	}
 });
 
 let quizReadyListener = new Listener("quiz ready", (data) => {
@@ -402,7 +474,7 @@ function updatePlayerRow(player) {
 		playerrow.append(answerCol);
 		playerrow.click(function () {
 			SelectAvatarGroup($(this).find(".fstBox").text());
-        });
+		});
 		playerSummaryWindowTable.append(playerrow);
 
 		row=playerSummaryWindowTable.find("#friendScore"+player.gamePlayerId)[0];
@@ -558,7 +630,7 @@ for(let table of colorSettingData) {
 				let div=$('<div></div>');
 				div.addClass("customCheckbox");
 				let checkbox=$('<input type="checkbox" id="'+column.id+'">');
-				checkbox.prop("checked", getSaveData(column.id, true));
+				checkbox.prop("checked", getSaveData(column.id, column.val===undefined?true:column.val));
 				checkbox.click(function () {
 					setTimeout(() => {
 						let check=$("#"+column.id).prop("checked");
@@ -695,14 +767,24 @@ function updateChatMessage(message) {
 			$(`#gcPlayerMessage-${message.messageId}`).find(".gcUserName")
 				.addClass("self")
 				.css("color", $("#smColorSelfChat").prop("checked")?$("#smColorSelfColor").val():"");
-		},0);
+		},1);
 	}
 	else if (socialTab.isFriend(message.sender)) {
 		setTimeout(() => {
-			$(`#gcPlayerMessage-${message.messageId}`).find(".gcUserName")
-				.addClass("friend")
-				.css("color", $("#smColorFriendChat").prop("checked")?$("#smColorFriendColor").val():"");
-		},0);
+			var gcUserName=$(`#gcPlayerMessage-${message.messageId}`).find(".gcUserName")
+				.addClass("friend");
+			if($("#smRemoveFriendColor").prop("checked")) gcUserName.removeClass("gcNameColor");
+			if($("#smRemoveFriendGlow").prop("checked")) gcUserName.removeClass("gcNameGlow");
+			if($("#smOverrideRankedColor").prop("checked") || $("#smRemoveFriendColor").prop("checked") || (!gcUserName.hasClass("gcNameColor")&&!gcUserName.hasClass("gcNameGlow")) )
+				gcUserName.css("color", $("#smColorFriendChat").prop("checked")?$("#smColorFriendColor").val():"");
+		},1);
+	}
+	else {
+		setTimeout(() => {
+			var gcUserName=$(`#gcPlayerMessage-${message.messageId}`).find(".gcUserName");
+			if($("#smRemoveColor").prop("checked")) gcUserName.removeClass("gcNameColor");
+			if($("#smRemoveGlow").prop("checked")) gcUserName.removeClass("gcNameGlow");
+		},1);
 	}
 }
 
@@ -747,11 +829,11 @@ function isFriend(username) {
 }
 
 new Listener("New Player", function(){
-    colorPlayers();
+	colorPlayers();
 }).bindListener();
 
 new Listener("Spectator Change To Player", function(){
-    colorPlayers();
+	colorPlayers();
 }).bindListener();
 
 function colorPlayers(){
@@ -761,7 +843,7 @@ function colorPlayers(){
 			$(elem).parent().addClass("self")
 			$(elem).css("color", $("#smColorSelfSpec").prop("checked")?$("#smColorSelfColor").val():"");
 		}
-        else if(isFriend($(elem).text())) {
+		else if(isFriend($(elem).text())) {
 			$(elem).parent().addClass("friend")
 			$(elem).css("color", $("#smColorFriendSpec").prop("checked")?$("#smColorFriendColor").val():"");
 		}
@@ -821,60 +903,60 @@ function refreshColors() {
 
 
 AMQ_addScriptData({
-    name: "Highlight Friends",
-    author: "nyamu",
-    description: `
-        <p>Change color of yourself and friends' text in score box and avatar box and chat.</p>
-        <p>It makes it easier to find your friends in room that many users joined like ranked game.</p>
-        <p>You can adjust these colors and toggle on Settings > Graphics tab.</p>
-        <img src="https://i.imgur.com/ymPESKe.png" />
-        <p>You can open/close Player Summary window by clicking this button.</p>
-        <img src="https://i.imgur.com/ZFLFd2t.png" />
-        <p>It's almost like scorebox but shows some additional infomation. When you clicked someone, it shows his/her box.</p>
-        <img src="https://i.imgur.com/qEqp4wm.png" />
-        <p>It shows your friends only in ranked game. It might be more useful in ranked game than normal room.</p>
-        <img src="https://i.imgur.com/ZJMDBUd.png" />
-        <p>Codes that applying colors to friend name on chat and lobby was provided by ensorcell. thanks a lot.</p>
-        <p>Thanks a lot TheJoseph98 for providing window script and mentoring.</p>
-    `
+	name: "Highlight Friends",
+	author: "nyamu",
+	description: `
+		<p>Change color of yourself and friends' text in score box and avatar box and chat.</p>
+		<p>It makes it easier to find your friends in room that many users joined like ranked game.</p>
+		<p>You can adjust these colors and toggle on Settings > Graphics tab.</p>
+		<img src="https://i.imgur.com/ymPESKe.png" />
+		<p>You can open/close Player Summary window by clicking this button.</p>
+		<img src="https://i.imgur.com/ZFLFd2t.png" />
+		<p>It's almost like scorebox but shows some additional infomation. When you clicked someone, it shows his/her box.</p>
+		<img src="https://i.imgur.com/qEqp4wm.png" />
+		<p>It shows your friends only in ranked game. It might be more useful in ranked game than normal room.</p>
+		<img src="https://i.imgur.com/ZJMDBUd.png" />
+		<p>Codes that applying colors to friend name on chat and lobby was provided by ensorcell. thanks a lot.</p>
+		<p>Thanks a lot TheJoseph98 for providing window script and mentoring.</p>
+	`
 });
 
 AMQ_addStyle(`
-    #playerSummaryWindowTableContainer {
-        padding: 10px;
-    }
-    .friendScore {
-        height: 30px;
-    }
-    .friendScore > td {
-        vertical-align: middle;
-        border: 1px solid black;
-        text-align: center;
-    }
-    .fstRank {
-        min-width: 40px;
-    }
-    .fstScore {
-        min-width: 40px;
-    }
-    .fstName {
-        min-width: 80px;
-    }
-    .fstBox {
-        min-width: 40px;
-    }
-    .fstAnswer {
-        min-width: 80px;
-    }
-    .correctGuess {
-        background-color: rgba(0, 200, 0, 0.07);
-    }
-    .incorrectGuess {
-        background-color: rgba(255, 0, 0, 0.07);
-    }
-    #qpPlayerSummaryButton {
-        width: 30px;
-        height: 100%;
-        margin-right: 5px;
-    }
+	#playerSummaryWindowTableContainer {
+		padding: 10px;
+	}
+	.friendScore {
+		height: 30px;
+	}
+	.friendScore > td {
+		vertical-align: middle;
+		border: 1px solid black;
+		text-align: center;
+	}
+	.fstRank {
+		min-width: 40px;
+	}
+	.fstScore {
+		min-width: 40px;
+	}
+	.fstName {
+		min-width: 80px;
+	}
+	.fstBox {
+		min-width: 40px;
+	}
+	.fstAnswer {
+		min-width: 80px;
+	}
+	.correctGuess {
+		background-color: rgba(0, 200, 0, 0.07);
+	}
+	.incorrectGuess {
+		background-color: rgba(255, 0, 0, 0.07);
+	}
+	#qpPlayerSummaryButton {
+		width: 30px;
+		height: 100%;
+		margin-right: 5px;
+	}
 `);

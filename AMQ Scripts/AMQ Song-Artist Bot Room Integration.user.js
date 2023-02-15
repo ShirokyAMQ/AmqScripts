@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Song/Artist Bot Room Integration
 // @namespace    http://tampermonkey.net/
-// @version      4.0.0
+// @version      4.1.5
 // @description  try to take over the world!
 // @author       You
 // @match        https://animemusicquiz.com/*
@@ -25,14 +25,11 @@ const CONFIG = {
     autoSkipStrings: GM_getValue("autoSkipStrings") ?? false
 };
 
-const AUTO_SKIP_STRINGS = ["/", "\\", "🏳", "/next"];
+const AUTO_SKIP_STRINGS = ["/", "\\", "🏳", "/next", "all u"];
 
 const BASE_URL = "https://amqbot.duckdns.org:7000";
 
 const SIGNALR_HUB_URL = `${BASE_URL}/hub/sa`;
-
-// /ans compat
-const ANS_SOCKET_URL = "wss://amqbot-server.herokuapp.com/";
 
 const handshakeString = "[0000]"
 
@@ -52,7 +49,7 @@ const EVENT_NAME = {
     CORRECT: "Correct",
     NEW_GAME_MODE_UPDATE: "NewGameModeUpdate",
     NEXT_VIDEO_INFO_OVERRIDE: "NextVideoInfoOverride",
-    OVERRIDE_UPDATE: "OverrideUpdate",
+    OVERRIDE_UPDATE: "OverrideUpdate"
 }
 
 /**
@@ -185,6 +182,46 @@ div#qpAnimeContainer > div > div.qpSideContainer > div.row.invisible-row {
     margin-left: 5px;
 }
 
+#sai-artist-info-icon {
+    position: absolute;
+    padding: 0 6px;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+#sai-artist-info-content {
+    display: none;
+}
+
+.sai-artist-group {
+    padding: 0 1rem;
+    margin-top: 12px;
+}
+
+.sai-artist-group:last-child {
+    margin-bottom: 12px;
+}
+
+.sai-artist-group-name {
+    font-weight: bold;
+    text-align: left;
+    color: white;
+    border-bottom: 1px solid #4c4c4c;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+}
+
+.sai-artist-group-member {
+    text-align: left;
+}
+
+.sai-artist-group-missing {
+    text-align: left;
+    font-style: italic;
+    color: #b7b7b7;
+    font-size: 13px;
+}
+
 `);
 
 css.disabled = true;
@@ -230,10 +267,24 @@ const artistNameCheckEl = document.createElement("span");
 artistNameCheckEl.id = "sai-artist-name-check";
 artistNameEl.appendChild(artistNameCheckEl);
 
+const artistGroupInfoIconEl = document.createElement("i");
+artistGroupInfoIconEl.id = "sai-artist-info-icon"
+artistGroupInfoIconEl.className = "fa fa-info-circle";
+artistGroupInfoIconEl.tabIndex = 0;
+
+const artistGroupInfoContentEl = document.createElement("div");
+artistGroupInfoContentEl.id = "sai-artist-info-content";
+
 const artists = {
     map: new Map(),
     totalCount: 0,
     guessed: false,
+}
+
+const ngm = {
+    guessesLeft: 0,
+    lastGuess: false,
+    active: false,
 }
 
 // Answer input replacement
@@ -374,6 +425,12 @@ function onOverrideUpdate(enabled) {
  */
 async function onNewGameModeUpdate(message) {
     for (const {id, count, lastGuess} of message.playerGuesses) {
+        if (id === quiz.ownGamePlayerId) {
+            ngm.guessesLeft = count;
+            ngm.lastGuess = lastGuess;
+            ngm.active = true;
+        }
+
         const containerDiv = quiz.players[id].avatarSlot.$hiddenIconContainer.get(0);
         containerDiv.classList.remove("hide");
 
@@ -453,11 +510,47 @@ async function onCorrectSongArtist(message) {
  *         otherGroupNames: string[],
  *         album: string,
  *         fileUrl: string
- *     }?
+ *     }?,
+ *     artistGroups: {
+ *         name: string,
+ *         members: string[]
+ *     }[]
  * }} message
  */
 async function onAnswerResults(message) {
     $("#qpExtraSongInfo").parent().removeClass("invisible-row");
+
+    if (message.artistGroups.length > 0) {
+        artistGroupInfoContentEl.innerHTML = null;
+
+        for (const group of message.artistGroups) {
+            const groupDiv = document.createElement("div");
+            groupDiv.className = "sai-artist-group";
+            artistGroupInfoContentEl.appendChild(groupDiv);
+
+            const groupName = document.createElement("div");
+            groupName.className = "sai-artist-group-name";
+            groupName.innerText = group.name;
+            groupDiv.appendChild(groupName);
+
+            if (group.members.length === 0) {
+                const msgEl = document.createElement("div");
+                msgEl.className = "sai-artist-group-missing";
+                msgEl.innerText = "(undefined)";
+                groupDiv.appendChild(msgEl);
+                continue;
+            }
+
+            for (const artist of group.members) {
+                const artistEl = document.createElement("div");
+                artistEl.className = "sai-artist-group-member";
+                artistEl.innerText = artist;
+                groupDiv.appendChild(artistEl);
+            }
+        }
+
+        artistGroupInfoIconEl.classList.remove("hidden");
+    }
 
     if (!message.dbSong) {
         // song is not in the db
@@ -806,6 +899,7 @@ function resetSongInfo() {
     artistNameEl.removeAttribute("class");
     artistNameTextEl.innerText = "?";
     artistNameCheckEl.innerText = null;
+    artistGroupInfoIconEl.classList.add("hidden");
 
     artists.map.clear();
     artists.totalCount = 0;
@@ -948,6 +1042,22 @@ function setupIntegration() {
     qpSongArtist.style.display = "none";
     qpSongArtist.parentElement.appendChild(artistNameEl);
 
+    qpSongArtist.previousElementSibling.appendChild(artistGroupInfoIconEl);
+    qpSongArtist.previousElementSibling.appendChild(artistGroupInfoContentEl);
+
+    $(artistGroupInfoIconEl).popover({
+        html: true,
+        content: () => {
+            return $(artistGroupInfoContentEl).html();
+        },
+        trigger: "hover focus",
+        delay: {
+            show: 150,
+            hide: 50
+        },
+        placement: "bottom"
+    });
+
     // Replaced answer input setup
     answerInput.addEventListener('input', onAnswerInput);
     answerInput.addEventListener('keydown', onAnswerKeydown)
@@ -1011,6 +1121,9 @@ function removeIntegration() {
     const qpSongArtist = document.getElementById("qpSongArtist");
     qpSongArtist.parentElement.removeChild(artistNameEl);
     qpSongArtist.style.display = "";
+
+    qpSongArtist.previousElementSibling.removeChild(artistGroupInfoIconEl);
+    qpSongArtist.previousElementSibling.removeChild(artistGroupInfoContentEl);
 
     // Remove listeners on the input used as replacement
     answerInput.removeEventListener('input', onAnswerInput);
@@ -1228,6 +1341,8 @@ function setup() {
     new Listener("Game Starting", onGameStart).bindListener();
     new Listener("guess phase over", onGuessPhaseOver).bindListener();
     new Listener("play next song", onPlayNextSong).bindListener();
+    new Listener("nexus map init", onNexusMapInit).bindListener();
+    new Listener("nexus map rejoin", onNexusMapRejoin).bindListener();
 
     originalTeamMemberAnswerCallback = quiz._teamMemberAnswerListener.callback;
     originalPlayerAnswerCallback = quiz._playerAnswerListener.callback;
@@ -1260,14 +1375,7 @@ function setup() {
 
                 if (message.length === 2) {
                     const [name, token] = message;
-
-                    // /ans compat
-                    if (name === "token") {
-                        connectAns(token);
-                    } else {
-                        // connect(token);
-                        connectSignalR(token);
-                    }
+                    connectSignalR(token);
                 }
                 return;
             }
@@ -1278,48 +1386,25 @@ function setup() {
     setupConfigWindow();
 }
 
-// /ans compat
-function connectAns(token) {
-    const ws = new WebSocket(ANS_SOCKET_URL);
-
-    ws.addEventListener('open', (event) => {
-        ws.send(JSON.stringify({
-            type: 'subscribe',
-            player: selfName,
-            token
-        }))
-    })
-
-    ws.addEventListener('message', (event) => {
-        try {
-            const message = JSON.parse(event.data)
-            if (!quiz) return
-            if (!quiz.inQuiz) return
-
-            if (message.type === 'answer') {
-                quiz.players[message.gamePlayerId].answer = message.answer
-            }
-        } catch {
-        }
-    })
-}
-
 function onPlayNextSong(data) {
     if (!quiz || !isConnected()) {
         return;
     }
 
-    if (!quiz.isSpectator) {
-        answerInput.value = "";
-        answerInput.disabled = false;
+    if (quiz.isSpectator) {
+        return;
+    }
 
-        if (answerInput.parentElement.classList.contains("focused")) {
-            answerInput.focus();
-        }
+    answerInput.style.color = "";
+    answerInput.value = "";
+    answerInput.disabled = false;
 
-        if (CONFIG.autoSkipAlways) {
-            amqVoteSkip(true);
-        }
+    if (answerInput.parentElement.classList.contains("focused")) {
+        answerInput.focus();
+    }
+
+    if (CONFIG.autoSkipAlways) {
+        amqVoteSkip(true);
     }
 }
 
@@ -1332,6 +1417,8 @@ function onGameStart(data) {
     answerInput.disabled = true;
 
     resetSongInfo();
+
+    ngm.active = false;
 }
 
 function onJoinGame(data) {
@@ -1343,6 +1430,14 @@ function onSpectateGame(data) {
 }
 
 function onHostGame(data) {
+    removeIntegration();
+}
+
+function onNexusMapInit(data) {
+    removeIntegration();
+}
+
+function onNexusMapRejoin(data) {
     removeIntegration();
 }
 
