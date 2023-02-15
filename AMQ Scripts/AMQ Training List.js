@@ -15,7 +15,7 @@
 // Command /tracker to enable
 // Disabled by default
 
-// TODO: tag blacklist, maybe add entry count to storage 
+// TODO: tag blacklist, fix anilist 429 (too many requests) error handling, MAYBE handle reuploads (probably not) 
 let accessToken = null;
 // don't load on login page
 if (document.getElementById("startPage")) return;
@@ -43,6 +43,7 @@ let savedSettings = {
     appID: "",
     appSecret: "",
     accessToken: "",
+    totalEntries: null,
     maxListEntries: 100
 }
 
@@ -75,15 +76,16 @@ function checkIfAdd(songType) {
 async function setup() {
     let answerResultsListener = new Listener("answer results", async (result) => {
 
-        if (totalEntries === null && accessToken) {
-            totalEntries = await getListCount();
+        if (savedSettings.totalEntries === null && accessToken) {
+            savedSettings.totalEntries = await getListCount();
+            saveSettings()
         }
 
-        console.log("total entries is: " + totalEntries)
+        console.log("total entries is: " + savedSettings.totalEntries)
 
         if (enabled) {       
         
-            if(totalEntries >= savedSettings.maxListEntries) {
+            if(savedSettings.totalEntries >= savedSettings.maxListEntries) {
                 enabled = false
                 gameChat.systemMessage("List has reached limit, disabling tracker");
             }
@@ -528,7 +530,8 @@ function checkMediaEntry(showId) {
     }
 
     function errorHandler() {
-        totalEntries += 1
+        savedSettings.totalEntries += 1
+        saveSettings()
         return null
     }
 
@@ -647,7 +650,7 @@ async function deleteAllEntries() {
         await deleteEntry(entries[i])
     }
     deleteInProgress = false
-    totalEntries = 0
+    savedSettings.totalEntries = null
 }
 
 async function getListCount() {
