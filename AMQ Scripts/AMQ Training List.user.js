@@ -9,6 +9,8 @@
 // @grant        none
 // @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqWindows.js
 // @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
+// @downloadURL  https://github.com/ShirokyAMQ/AmqScripts/blob/main/AMQ%20Scripts/AMQ%20Training%20List.user.js
+// @updateURL    https://github.com/ShirokyAMQ/AmqScripts/blob/main/AMQ%20Scripts/AMQ%20Training%20List.user.js
 // ==/UserScript==
 
 // Inspired by 4LafJ and anticol, script to add missed shows onto a list to train. Keeps track of your record for each song from that show. Can select Op/Ed/Ins
