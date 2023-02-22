@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Training List
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      1.0
 // @description  try to take over the world!
 // @author       You
 // @match        https://animemusicquiz.com/
@@ -32,6 +32,7 @@ let trackerSettingsWindow;
 let authWindow;
 let trackerWindowOpenButton;
 let enabled = false;
+let addingShows = false;
 let totalEntries = null
 let deleteInProgress = false
 
@@ -81,15 +82,14 @@ async function setup() {
             saveSettings()
         }
 
-        console.log("total entries is: " + savedSettings.totalEntries)
 
         if (enabled) {       
         
-            if(savedSettings.totalEntries >= savedSettings.maxListEntries) {
-                enabled = false
-                gameChat.systemMessage("List has reached limit, disabling tracker");
+            if (savedSettings.totalEntries >= savedSettings.maxListEntries) {
+                addingShows = false
+                gameChat.systemMessage("List has reached limit, disabling adding shows");
             }
-     
+
             let showId = result.songInfo.siteIds.aniListId;
             let songName = result.songInfo.songName
             let correctVal = isCorrect(result)
@@ -102,12 +102,12 @@ async function setup() {
                         let newNotes = handleNotes(mediaEntry, songName, correctVal)
                         await addOrUpdateToList(showId, mediaEntry, newNotes)
                     }
-                    else if (!correctVal) {
+                    else if (!correctVal && addingShows) {
                         let newNotes = handleNotes(mediaEntry, songName, correctVal)
                         await addOrUpdateToList(showId, mediaEntry, newNotes)
                     }
                 }
-             }
+            }
         }
     });    
     
@@ -768,6 +768,7 @@ function toggleTracker() {
             event.target.value = ''
 
             enabled = !enabled
+            addingShows = enabled;
             if(quiz.gameMode === "Ranked") return;
             gameChat.systemMessage(enabled?"Training tracker is enabled" : "Training tracker is disabled");        
         }
